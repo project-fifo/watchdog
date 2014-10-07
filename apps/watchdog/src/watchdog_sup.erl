@@ -1,4 +1,4 @@
--module(myapp_sup).
+-module(watchdog_sup).
 
 -behaviour(supervisor).
 
