@@ -1,0 +1,6 @@
+apps/watchdog/.eunit
+apps/watchdog/.rebar
+apps/watchdog/ebin
+deps
+TAGS
+watchdog.version
