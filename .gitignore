@@ -4,3 +4,4 @@ apps/watchdog/ebin
 deps
 TAGS
 watchdog.version
+apps/watchdog/src/watchdog_version.hrl
