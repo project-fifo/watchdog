@@ -1,11 +1,14 @@
 {application, watchdog,
  [
   {description, ""},
-  {vsn, "1"},
+  {vsn, "0.1.0"},
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  ranch,
+                  folsom,
+                  lager
                  ]},
   {mod, { watchdog_app, []}},
   {env, []}
