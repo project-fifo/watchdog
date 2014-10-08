@@ -1,4 +1,4 @@
--module(watchdog_sup).
+-module(watchdog_system_sup).
 
 -behaviour(supervisor).
 
@@ -7,9 +7,6 @@
 
 %% Supervisor callbacks
 -export([init/1]).
-
-%% Helper macro for declaring children of supervisor
--define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
 
 %% ===================================================================
 %% API functions
@@ -23,8 +20,9 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10},
-           [
-            ?CHILD(watchdog_system_sup, supervisor)
-           ]} }.
+    Element = {watchdog_system, {watchdog_system, start_link, []},
+               transient, infinity, worker, [watchdog_system]},
+    Children = [Element],
+    RestartStrategy = {simple_one_for_one, 5, 10},
+    {ok, {RestartStrategy, Children}}.
 

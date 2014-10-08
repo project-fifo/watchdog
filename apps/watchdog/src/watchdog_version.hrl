@@ -1,1 +1,1 @@
--define(VERSION, <<"master-f49618f, Tue Oct 7 14:37:32 2014 -0400">>).
+-define(VERSION, <<"master-7c3a8ab, Wed Oct 8 12:29:47 2014 -0400">>).

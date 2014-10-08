@@ -8,6 +8,7 @@
                   stdlib,
                   ranch,
                   folsom,
+                  gproc,
                   lager
                  ]},
   {mod, { watchdog_app, []}},
