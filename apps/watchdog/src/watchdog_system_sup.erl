@@ -4,6 +4,7 @@
 
 %% API
 -export([start_link/0]).
+-ignore_xref([start_link/0]).
 
 %% Supervisor callbacks
 -export([init/1]).

@@ -119,11 +119,39 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({notify, {{lager, Lvl}, {flf, File, Line, _Function}}}, State = #state{id = ID}) ->
-    Name = {ID, File, Line},
+handle_cast({notify, {{lager, Lvl}, {flf, File, Line, _Function}}},
+            State = #state{id = ID}) ->
+    Name = {ID, {File, Line}},
     case folsom_metrics:new_spiral(Name) of
         ok ->
             folsom_metrics:tag_metric(Name, {ID, Lvl});
+        _ ->
+            ok
+    end,
+    folsom_metrics:notify({Name, 1}),
+    {noreply, State};
+
+handle_cast({notify, {_Error, {mfaf,{_M, _F, _A, {File,Line}}}}},
+            State = #state{id = ID}) ->
+    Name = {ID, {File, Line}},
+    case folsom_metrics:new_spiral(Name) of
+        ok ->
+            folsom_metrics:tag_metric(Name, {ID, crash});
+        _ ->
+            ok
+    end,
+    folsom_metrics:notify({Name, 1}),
+    {noreply, State};
+
+handle_cast({notify, {_Error, {mfa,{gen_server,_ , _}}}}, State) ->
+    {noreply, State};
+
+handle_cast({notify, {_Error, {mfa, MFA}}},
+            State = #state{id = ID}) ->
+    Name = {ID, MFA},
+    case folsom_metrics:new_spiral(Name) of
+        ok ->
+            folsom_metrics:tag_metric(Name, {ID, crash});
         _ ->
             ok
     end,
