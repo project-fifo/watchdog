@@ -128,6 +128,9 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({notify, {_, {flf, <<"gen_server.erl">>, _L, _F}}}, State) ->
+    {noreply, State};
+
 handle_cast({notify, {{lager, Lvl}, {flf, File, Line, _Function}}},
             State = #state{id = ID}) ->
     Name = {ID, {File, Line}},
@@ -140,7 +143,7 @@ handle_cast({notify, {{lager, Lvl}, {flf, File, Line, _Function}}},
     folsom_metrics:notify({Name, 1}),
     {noreply, State};
 
-handle_cast({notify, {_Error, {mfaf,{_M, _F, _A, {File,Line}}}}},
+handle_cast({notify, {_Error, {mfaf, {_M, _F, _A, {File,Line}}}}},
             State = #state{id = ID}) ->
     Name = {ID, {File, Line}},
     case folsom_metrics:new_spiral(Name) of
@@ -152,7 +155,7 @@ handle_cast({notify, {_Error, {mfaf,{_M, _F, _A, {File,Line}}}}},
     folsom_metrics:notify({Name, 1}),
     {noreply, State};
 
-handle_cast({notify, {_Error, {mfa,{<<"gen_server">>,_ , _}}}}, State) ->
+handle_cast({notify, {_Error, {mfa, {<<"gen_server">>, _ , _}}}}, State) ->
     {noreply, State};
 
 handle_cast({notify, {_Error, {mfa, MFA}}},
