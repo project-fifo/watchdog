@@ -234,7 +234,7 @@ run_list([{{_ID, {M, F, A}}, [{count, _Cnt}, {one, One}]} | R],
          Threshold, Total)
   when One >= Threshold ->
     elarm:raise(function_error,
-                <<(a2b(M))/binary, $:, (a2b(F))/binary, $/, (i2b(A))/binary>>,
+                <<M/binary, $:, F/binary, $/, (i2b(A))/binary>>,
                 [{level, One}]),
     run_list(R, Threshold, Total + One);
 
@@ -242,13 +242,13 @@ run_list([{{_ID, {M, F, A}} = Metric, [{count, _Cnt}, {one, 0}]} | R],
          Threshold, Total) ->
     folsom_metrics:delete_metric(Metric),
     elarm:clear(function_error,
-                <<(a2b(M))/binary, $:, (a2b(F))/binary, $/, (i2b(A))/binary>>),
+                <<M/binary, $:, F/binary, $/, (i2b(A))/binary>>),
     run_list(R, Threshold, Total);
 
 run_list([{{_ID, {M, F, A}}, [{count, _Cnt}, {one, One}]} | R],
          Threshold, Total) ->
     elarm:clear(function_error,
-                <<(a2b(M))/binary, $:, (a2b(F))/binary, $/, (i2b(A))/binary>>),
+                <<M/binary, $:, F/binary, $/, (i2b(A))/binary>>),
     run_list(R, Threshold, Total + One);
 
 run_list([{_, [{count, _Cnt}, {one, One}]} | R], Threshold, Total) ->
@@ -256,9 +256,6 @@ run_list([{_, [{count, _Cnt}, {one, One}]} | R], Threshold, Total) ->
 
 run_list([], _, Total) ->
     Total.
-
-a2b(A) ->
-    list_to_binary(atom_to_list(A)).
 
 i2b(I) ->
     integer_to_binary(I).
