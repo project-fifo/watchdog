@@ -152,7 +152,7 @@ handle_cast({notify, {_Error, {mfaf,{_M, _F, _A, {File,Line}}}}},
     folsom_metrics:notify({Name, 1}),
     {noreply, State};
 
-handle_cast({notify, {_Error, {mfa,{gen_server,_ , _}}}}, State) ->
+handle_cast({notify, {_Error, {mfa,{<<"gen_server">>,_ , _}}}}, State) ->
     {noreply, State};
 
 handle_cast({notify, {_Error, {mfa, MFA}}},
@@ -190,10 +190,10 @@ handle_info(tick, State = #state{id = ID}) ->
                 system -> system_error;
                 cluster -> cluster_error
             end,
-    run(ID, info, EType, ?INFO_THRESHOLD),
-    run(ID, warning, EType, ?WARN_THRESHOLD),
-    run(ID, error, EType, ?ERROR_THRESHOLD),
-    run(ID, crash, EType, ?CRASH_THRESHOLD),
+    run(ID, info, {EType, id2s(ID)},  ?INFO_THRESHOLD),
+    run(ID, warning, {EType, id2s(ID)}, ?WARN_THRESHOLD),
+    run(ID, error, {EType, id2s(ID)}, ?ERROR_THRESHOLD),
+    run(ID, crash, {EType, id2s(ID)}, ?CRASH_THRESHOLD),
     erlang:send_after(?TICK, self(), tick),
     {noreply, State};
 handle_info(_Info, State) ->
@@ -202,13 +202,13 @@ handle_info(_Info, State) ->
 run(_ID, _Lvl, _, undefined) ->
     0;
 
-run(ID, Lvl, EType, Threshold) ->
+run(ID, Lvl, {EType, EID}, Threshold) ->
     case run_list(folsom_metrics:get_metrics_value({ID, Lvl}), Threshold, 0) of
         E when E >= Threshold ->
-            elarm:raise(EType, <<"Over threshold">>, [{level, E}]),
+            elarm:raise(EType, EID, [{level, E}]),
             error;
         _ ->
-            elarm:clear(EType, <<"Over threshold">>),
+            elarm:clear(EType, EID),
             ok
     end.
 
@@ -288,3 +288,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+id2s({Cluster, System, Node}) ->
+    <<Cluster/binary, $/, System/binary, $/, Node/binary>>;
+id2s({Cluster, System}) ->
+    <<Cluster/binary, $/, System/binary>>;
+id2s(Cluster) ->
+    Cluster.
