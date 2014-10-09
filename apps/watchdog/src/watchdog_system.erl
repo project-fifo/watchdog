@@ -20,6 +20,12 @@
          terminate/2, code_change/3]).
 
 -define(SERVER, ?MODULE).
+-define(TICK, 10*1000). %10s
+
+-define(INFO_THRESHOLD, undefined).
+-define(WARN_THRESHOLD, 50).
+-define(ERROR_THRESHOLD, 5).
+-define(CRASH_THRESHOLD, 1).
 
 -record(state, {type, cluster, system, node, id, tbl}).
 
@@ -82,12 +88,15 @@ start_link(Type, C, S, N) ->
 %% @end
 %%--------------------------------------------------------------------
 init([cluster, C, S, N]) ->
+    erlang:send_after(?TICK, self(), tick),
     gproc:reg({n, l, {cluster, C}}, cluster),
     {ok, #state{type = cluster, cluster = C, system = S, node = N, id = C}};
 init([system, C, S, N]) ->
+    erlang:send_after(?TICK, self(), tick),
     gproc:reg({n, l, {system, S}}, system),
     {ok, #state{type = system, cluster = C, system = S, node = N, id = {C, S}}};
 init([node, C, S, N]) ->
+    erlang:send_after(?TICK, self(), tick),
     gproc:reg({n, l, {node, N}}, node),
     {ok, #state{type = node, cluster = C, system = S, node = N, id = {C, S, N}}}.
 
@@ -175,8 +184,71 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_info(tick, State = #state{id = ID}) ->
+    EType = case State#state.type of
+                node -> node_error;
+                system -> system_error;
+                cluster -> cluster_error
+            end,
+    run(ID, info, EType, ?INFO_THRESHOLD),
+    run(ID, warning, EType, ?WARN_THRESHOLD),
+    run(ID, error, EType, ?ERROR_THRESHOLD),
+    run(ID, crash, EType, ?CRASH_THRESHOLD),
+    erlang:send_after(?TICK, self(), tick),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
+
+run(_ID, _Lvl, _, undefined) ->
+    0;
+
+run(ID, Lvl, EType, Threshold) ->
+    case run_list(folsom_metrics:get_metrics_value({ID, Lvl}), Threshold, 0) of
+        E when E >= Threshold ->
+            elarm:raise(EType, <<"Over threshold">>, [{level, E}]),
+            error;
+        _ ->
+            elarm:clear(EType, <<"Over threshold">>),
+            ok
+    end.
+
+run_list([{{_ID, {File, Line}}, [{count, _Cnt},{one, One}]} | R],
+         Threshold, Total)
+  when One >= Threshold ->
+    elarm:raise(file_error, <<File/binary, ":", (i2b(Line))/binary>>,
+                [{level, One}]),
+    run_list(R, Threshold, Total + One);
+
+run_list([{{_ID, {File, Line}}, [{count, _Cnt},{one, One}]} | R],
+         Threshold, Total) ->
+    elarm:clear(file_error, <<File/binary, ":", (i2b(Line))/binary>>),
+    run_list(R, Threshold, Total + One);
+
+run_list([{{_ID, {M, F, A}}, [{count, _Cnt}, {one, One}]} | R],
+         Threshold, Total)
+  when One >= Threshold ->
+    elarm:raise(function_error,
+                <<(a2b(M))/binary, $:, (a2b(F))/binary, $/, (i2b(A))/binary>>,
+                [{level, One}]),
+    run_list(R, Threshold, Total + One);
+
+run_list([{{_ID, {M, F, A}}, [{count, _Cnt}, {one, One}]} | R],
+         Threshold, Total) ->
+    elarm:clear(function_error,
+                <<(a2b(M))/binary, $:, (a2b(F))/binary, $/, (i2b(A))/binary>>),
+    run_list(R, Threshold, Total + One);
+
+run_list([{_, [{count, _Cnt}, {one, One}]} | R], Threshold, Total) ->
+    run_list(R, Threshold, Total + One);
+
+run_list([], _, Total) ->
+    Total.
+
+a2b(A) ->
+    list_to_binary(atom_to_list(A)).
+
+i2b(I) ->
+    integer_to_binary(I).
 
 %%--------------------------------------------------------------------
 %% @private
