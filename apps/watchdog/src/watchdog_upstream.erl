@@ -44,8 +44,7 @@ mfa(Cluster, System, Node, Module, Function, Arity, Level) ->
                               Arity, Level}).
 
 raise(Cluster, System, Node, Type, Alert, Severity) ->
-    gen_server:cast(?SERVER, {rise_alert, Cluster, System, Node, Type, Alert,
-                              Severity}).
+    gen_server:cast(?SERVER, {raise_alert, Cluster, System, Node, Type, Alert, Severity}).
 
 clear(Cluster, System, Node, Type, Alert) ->
     gen_server:cast(?SERVER, {clear_alert, Cluster, System, Node, Type, Alert}).
@@ -210,7 +209,7 @@ encode({mfa, Cluster, System, Node, Module, Function, Arity, Level}) ->
            (byte_size(Function)):8, Function/binary,
            Arity:8, Level:8>>};
 
-encode({rise_alert, Cluster, System, Node, Type, Alert, Severity}) ->
+encode({raise_alert, Cluster, System, Node, Type, Alert, Severity}) ->
     {ok, <<3,
            (byte_size(Cluster)):8, Cluster/binary,
            (byte_size(System)):8, System/binary,

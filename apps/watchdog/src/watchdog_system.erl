@@ -236,11 +236,9 @@ run(_ID, _Lvl, _, undefined, S1) ->
 run(ID, Lvl, {EType, EID}, Threshold, S1) ->
     case run_list(folsom_metrics:get_metrics_value({ID, Lvl}), Threshold, 0, S1) of
         {E, S2} when E >= Threshold ->
-            elarm:raise(EType, EID, [{level, E}]),
-            S2;
+            raise(EType, EID, [{level, E}], S2);
         {0, S2} ->
-            elarm:clear(EType, EID),
-            S2;
+            clear(EType, EID, S2);
         {_, S2} ->
             S2
     end.
@@ -248,9 +246,9 @@ run(ID, Lvl, {EType, EID}, Threshold, S1) ->
 run_list([{{_ID, {File, Line}}, [{count, _Cnt},{one, One}]} | R],
          Threshold, Total, S1)
   when One >= Threshold ->
-    elarm:raise(file_error, <<File/binary, ":", (i2b(Line))/binary>>,
-                [{level, One}]),
-    run_list(R, Threshold, Total + One, S1);
+    S2 = raise(file_error, <<File/binary, ":", (i2b(Line))/binary>>,
+               [{level, One}], S1),
+    run_list(R, Threshold, Total + One, S2);
 
 run_list([{{_ID, {File, Line}} = Metric, [{count, _Cnt}, {one, 0}]} | R],
          Threshold, Total, S1) ->
