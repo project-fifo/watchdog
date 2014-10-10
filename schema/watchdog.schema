@@ -11,3 +11,6 @@
  [{commented, {"127.0.0.1", 4445}},
   {datatype, ip}]}.
 
+{mapping, "authtoken", "watchdog.auth_token",
+ [{commented, "sometoken"}},
+  {datatype, string}]}.

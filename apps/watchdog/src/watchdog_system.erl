@@ -27,7 +27,7 @@
 -define(ERROR_THRESHOLD, 5).
 -define(CRASH_THRESHOLD, 1).
 
--record(state, {type, cluster, system, node, id, tbl}).
+-record(state, {type, cluster, system, node, id, tbl, alarms = sets:new()}).
 
 %%%===================================================================
 %%% API
@@ -134,6 +134,8 @@ handle_cast({notify, {_, {flf, <<"gen_server.erl">>, _L, _F}}}, State) ->
 handle_cast({notify, {{lager, Lvl}, {flf, File, Line, _Function}}},
             State = #state{id = ID}) ->
     Name = {ID, {File, Line}},
+    report(ID, File, Line, level_to_int(Lvl)),
+
     case folsom_metrics:new_spiral(Name) of
         ok ->
             folsom_metrics:tag_metric(Name, {ID, Lvl});
@@ -143,9 +145,10 @@ handle_cast({notify, {{lager, Lvl}, {flf, File, Line, _Function}}},
     folsom_metrics:notify({Name, 1}),
     {noreply, State};
 
-handle_cast({notify, {_Error, {mfaf, {_M, _F, _A, {File,Line}}}}},
+handle_cast({notify, {_Error, {mfaf, {_M, _F, _A, {File, Line}}}}},
             State = #state{id = ID}) ->
     Name = {ID, {File, Line}},
+    report(ID, File, Line, 4),
     case folsom_metrics:new_spiral(Name) of
         ok ->
             folsom_metrics:tag_metric(Name, {ID, crash});
@@ -161,6 +164,7 @@ handle_cast({notify, {_Error, {mfa, {<<"gen_server">>, _ , _}}}}, State) ->
 handle_cast({notify, {_Error, {mfa, MFA}}},
             State = #state{id = ID}) ->
     Name = {ID, MFA},
+    report(ID, MFA, 4),
     case folsom_metrics:new_spiral(Name) of
         ok ->
             folsom_metrics:tag_metric(Name, {ID, crash});
@@ -176,6 +180,29 @@ handle_cast({notify, Msg}, State) ->
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
+
+report({C, S, N}, File, Line, Level) ->
+    watchdog_upstream:file(C, S, N, File, Line, Level);
+report(_, _, _, _) ->
+    ok.
+
+report({C, S, N}, {M, F, A}, Level) ->
+    watchdog_upstream:mfa(C, S, N, M, F, A, Level);
+report(_, _, _) ->
+    ok.
+
+level_to_int(debug) ->
+    0;
+level_to_int(info) ->
+    1;
+level_to_int(warning) ->
+    2;
+level_to_int(error) ->
+    3;
+level_to_int(crash) ->
+    4;
+level_to_int(_) ->
+    0.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -193,73 +220,105 @@ handle_info(tick, State = #state{id = ID}) ->
                 system -> system_error;
                 cluster -> cluster_error
             end,
-    run(ID, info, {EType, id2s(ID)},  ?INFO_THRESHOLD),
-    run(ID, warning, {EType, id2s(ID)}, ?WARN_THRESHOLD),
-    run(ID, error, {EType, id2s(ID)}, ?ERROR_THRESHOLD),
-    run(ID, crash, {EType, id2s(ID)}, ?CRASH_THRESHOLD),
+    S1 = run(ID, info, {EType, id2s(ID)},  ?INFO_THRESHOLD, State),
+    S2 = run(ID, warning, {EType, id2s(ID)}, ?WARN_THRESHOLD, S1),
+    S3 = run(ID, error, {EType, id2s(ID)}, ?ERROR_THRESHOLD, S2),
+    S4 = run(ID, crash, {EType, id2s(ID)}, ?CRASH_THRESHOLD, S3),
     erlang:send_after(?TICK, self(), tick),
-    {noreply, State};
+    {noreply, S4};
 
 handle_info(_Info, State) ->
     {noreply, State}.
 
-run(_ID, _Lvl, _, undefined) ->
-    0;
+run(_ID, _Lvl, _, undefined, S1) ->
+    S1;
 
-run(ID, Lvl, {EType, EID}, Threshold) ->
-    case run_list(folsom_metrics:get_metrics_value({ID, Lvl}), Threshold, 0) of
-        E when E >= Threshold ->
+run(ID, Lvl, {EType, EID}, Threshold, S1) ->
+    case run_list(folsom_metrics:get_metrics_value({ID, Lvl}), Threshold, 0, S1) of
+        {E, S2} when E >= Threshold ->
             elarm:raise(EType, EID, [{level, E}]),
-            error;
-        _ ->
+            S2;
+        {0, S2} ->
             elarm:clear(EType, EID),
-            ok
+            S2;
+        {_, S2} ->
+            S2
     end.
 
 run_list([{{_ID, {File, Line}}, [{count, _Cnt},{one, One}]} | R],
-         Threshold, Total)
+         Threshold, Total, S1)
   when One >= Threshold ->
     elarm:raise(file_error, <<File/binary, ":", (i2b(Line))/binary>>,
                 [{level, One}]),
-    run_list(R, Threshold, Total + One);
+    run_list(R, Threshold, Total + One, S1);
 
 run_list([{{_ID, {File, Line}} = Metric, [{count, _Cnt}, {one, 0}]} | R],
-         Threshold, Total) ->
+         Threshold, Total, S1) ->
     folsom_metrics:delete_metric(Metric),
-    elarm:clear(file_error, <<File/binary, ":", (i2b(Line))/binary>>),
-    run_list(R, Threshold, Total);
+    S2 = clear(file_error, <<File/binary, ":", (i2b(Line))/binary>>, S1),
+    run_list(R, Threshold, Total, S2);
 
-run_list([{{_ID, {File, Line}}, [{count, _Cnt},{one, One}]} | R],
-         Threshold, Total) ->
-    elarm:clear(file_error, <<File/binary, ":", (i2b(Line))/binary>>),
-    run_list(R, Threshold, Total + One);
+run_list([{{_ID, {_File, _Line}}, [{count, _Cnt},{one, One}]} | R],
+         Threshold, Total, S1) ->
+    run_list(R, Threshold, Total + One, S1);
 
 run_list([{{_ID, {M, F, A}}, [{count, _Cnt}, {one, One}]} | R],
-         Threshold, Total)
+         Threshold, Total, S1)
   when One >= Threshold ->
-    elarm:raise(function_error,
-                <<M/binary, $:, F/binary, $/, (i2b(A))/binary>>,
-                [{level, One}]),
-    run_list(R, Threshold, Total + One);
+    Error = <<M/binary, $:, F/binary, $/, (i2b(A))/binary>>,
+    S2 = raise(function_error, Error, [{level, One}], S1),
+    run_list(R, Threshold, Total + One, S2);
 
 run_list([{{_ID, {M, F, A}} = Metric, [{count, _Cnt}, {one, 0}]} | R],
-         Threshold, Total) ->
+         Threshold, Total, S1) ->
     folsom_metrics:delete_metric(Metric),
-    elarm:clear(function_error,
-                <<M/binary, $:, F/binary, $/, (i2b(A))/binary>>),
-    run_list(R, Threshold, Total);
+    Error = <<M/binary, $:, F/binary, $/, (i2b(A))/binary>>,
+    S2 = clear(function_error, Error, S1),
+    run_list(R, Threshold, Total, S2);
 
-run_list([{{_ID, {M, F, A}}, [{count, _Cnt}, {one, One}]} | R],
-         Threshold, Total) ->
-    elarm:clear(function_error,
-                <<M/binary, $:, F/binary, $/, (i2b(A))/binary>>),
-    run_list(R, Threshold, Total + One);
+run_list([{{_ID, {_M, _F, _A}}, [{count, _Cnt}, {one, One}]} | R],
+         Threshold, Total, S1) ->
+    run_list(R, Threshold, Total + One, S1);
 
-run_list([{_, [{count, _Cnt}, {one, One}]} | R], Threshold, Total) ->
-    run_list(R, Threshold, Total + One);
+run_list([{_, [{count, _Cnt}, {one, One}]} | R], Threshold, Total, S1) ->
+    run_list(R, Threshold, Total + One, S1);
 
-run_list([], _, Total) ->
-    Total.
+run_list([], _, Total, S1) ->
+    {Total, S1}.
+
+
+raise(Type, Alert, Lvl, State = #state{alarms = Alarms}) ->
+    E = {Type, Alert},
+    case sets:is_element(E, Alarms) of
+        true ->
+            State;
+        false ->
+            {C, S, N} = case State#state.id of
+                            {C1, S1, N1} -> {C1, S1, N1};
+                            {C1, S1} -> {C1, S1, <<>>};
+                            C1 -> {C1, <<>>, <<>>}
+                        end,
+            watchdog_upstream:raise(C, S, N, Type, Alert, Lvl),
+            elarm:raise(Type, Alert, [{level, Lvl}]),
+            State#state{alarms = sets:add_element(E, Alarms)}
+    end.
+
+clear(Type, Alert, State = #state{alarms = Alarms}) ->
+    E = {Type, Alert},
+    case sets:is_element(E, Alarms) of
+        false ->
+            State;
+        true ->
+            {C, S, N} = case State#state.id of
+                            {C1, S1, N1} -> {C1, S1, N1};
+                            {C1, S1} -> {C1, S1, <<>>};
+                            C1 -> {C1, <<>>, <<>>}
+                        end,
+            watchdog_upstream:clear(C, S, N, Type, Alert),
+            elarm:clear(Type, Alert),
+            State#state{alarms = sets:del_element(E, Alarms)}
+    end.
+
 
 i2b(I) ->
     integer_to_binary(I).

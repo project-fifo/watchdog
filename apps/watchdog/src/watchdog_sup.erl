@@ -25,6 +25,7 @@ start_link() ->
 init([]) ->
     {ok, { {one_for_one, 5, 10},
            [
-            ?CHILD(watchdog_system_sup, supervisor)
+            ?CHILD(watchdog_system_sup, supervisor),
+            ?CHILD(watchdog_upstream, worker)
            ]} }.
 
