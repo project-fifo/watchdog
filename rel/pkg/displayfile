@@ -1,0 +1,22 @@
+  Congratulations the Sniffle management server is now installed on the system.
+.------------------------------------------------------------------------------.
+| By default the service is disabled since it's common that you will need to   |
+| do some additional configurations.                                           |
+|                                                                              |
+| Please have a look at the configuraiton files:                               |
+|                                                                              |
+|  * /opt/local/fifo-sniffle/etc/sniffle.conf                                  |
+|                                                                              |
+| Note: To enable Sniffle you first need to enable the epmd service.           |
+|                                                                              |
+| If this is not the first node in your Smarl cluster join an existing ring    |
+| you can use the sniffle-admin tool to join the existing ring.                |
+|                                                                              |
+| If you want tab completion for the fifoadm command add the following line to |
+| your ~/.bashrc:                                                              |
+|                                                                              |
+| . /opt/local/fifo-sniffle/etc/fifo_complete.sh                               |
+|                                                                              |
+|                                                                              |
+`------------------------------------------------------------------------------'
+
