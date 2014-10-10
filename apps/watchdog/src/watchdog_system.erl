@@ -236,7 +236,7 @@ run(_ID, _Lvl, _, undefined, S1) ->
 run(ID, Lvl, {EType, EID}, Threshold, S1) ->
     case run_list(folsom_metrics:get_metrics_value({ID, Lvl}), Threshold, 0, S1) of
         {E, S2} when E >= Threshold ->
-            raise(EType, EID, [{level, E}], S2);
+            raise(EType, EID, E, S2);
         {0, S2} ->
             clear(EType, EID, S2);
         {_, S2} ->
@@ -246,8 +246,7 @@ run(ID, Lvl, {EType, EID}, Threshold, S1) ->
 run_list([{{_ID, {File, Line}}, [{count, _Cnt},{one, One}]} | R],
          Threshold, Total, S1)
   when One >= Threshold ->
-    S2 = raise(file_error, <<File/binary, ":", (i2b(Line))/binary>>,
-               [{level, One}], S1),
+    S2 = raise(file_error, <<File/binary, ":", (i2b(Line))/binary>>, One, S1),
     run_list(R, Threshold, Total + One, S2);
 
 run_list([{{_ID, {File, Line}} = Metric, [{count, _Cnt}, {one, 0}]} | R],
@@ -264,7 +263,7 @@ run_list([{{_ID, {M, F, A}}, [{count, _Cnt}, {one, One}]} | R],
          Threshold, Total, S1)
   when One >= Threshold ->
     Error = <<M/binary, $:, F/binary, $/, (i2b(A))/binary>>,
-    S2 = raise(function_error, Error, [{level, One}], S1),
+    S2 = raise(function_error, Error, One, S1),
     run_list(R, Threshold, Total + One, S2);
 
 run_list([{{_ID, {M, F, A}} = Metric, [{count, _Cnt}, {one, 0}]} | R],
