@@ -75,6 +75,9 @@ xref: all
 stage : rel
 	$(foreach dep,$(wildcard deps/* wildcard apps/*), rm -rf rel/watchdog/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) rel/watchdog/lib;)
 
+run: all
+	erl -pa {apps,deps}/*/ebin -s watchdog
+
 
 ##
 ## Dialyzer
