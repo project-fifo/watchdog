@@ -1,6 +1,6 @@
-VERSION=0.1.2
-COMPONENT_INTERNAL=dozer
-COMPONENT=fifo-dozer
+VERSION=0.1.0
+COMPONENT_INTERNAL=watchdog
+COMPONENT=fifo-watchdog
 
 .PHONY: build_info package package_list
 
