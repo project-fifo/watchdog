@@ -44,7 +44,7 @@ mfa(Cluster, System, Node, Module, Function, Arity, Level) ->
                               Arity, Level}).
 
 raise(Cluster, System, Node, Type, Alert, Severity) ->
-    gen_server:cast(?SERVER, {raise_alert, Cluster, System, Node, Type, Alert,
+    gen_server:cast(?SERVER, {rise_alert, Cluster, System, Node, Type, Alert,
                               Severity}).
 
 clear(Cluster, System, Node, Type, Alert) ->
