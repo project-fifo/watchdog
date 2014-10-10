@@ -298,7 +298,7 @@ raise(Type, Alert, Lvl, State = #state{alarms = Alarms}) ->
                             {C1, S1} -> {C1, S1, <<>>};
                             C1 -> {C1, <<>>, <<>>}
                         end,
-            watchdog_upstream:raise(C, S, N, Type, Alert, Lvl),
+            watchdog_upstream:raise(C, S, N, a2b(Type), Alert, Lvl),
             elarm:raise(Type, Alert, [{level, Lvl}]),
             State#state{alarms = sets:add_element(E, Alarms)}
     end.
@@ -314,11 +314,14 @@ clear(Type, Alert, State = #state{alarms = Alarms}) ->
                             {C1, S1} -> {C1, S1, <<>>};
                             C1 -> {C1, <<>>, <<>>}
                         end,
-            watchdog_upstream:clear(C, S, N, Type, Alert),
+            watchdog_upstream:clear(C, S, N, a2b(Type), Alert),
             elarm:clear(Type, Alert),
             State#state{alarms = sets:del_element(E, Alarms)}
     end.
 
+
+a2b(A) ->
+    list_to_binary(atom_to_list(A)).
 
 i2b(I) ->
     integer_to_binary(I).
