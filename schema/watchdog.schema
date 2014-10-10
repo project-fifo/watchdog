@@ -12,5 +12,5 @@
   {datatype, ip}]}.
 
 {mapping, "authtoken", "watchdog.auth_token",
- [{commented, "sometoken"}},
+ [{commented, "sometoken"},
   {datatype, string}]}.
