@@ -46,7 +46,7 @@ quick-test:
 	-rm -r apps/watchdog/.eunit
 	$(REBAR) -DEQC_SHORT_TEST skip_deps=true eunit -r -v
 
-rel: all zabbix
+rel: all
 	-rm -r rel/watchdog/share
 	$(REBAR) generate
 
@@ -55,9 +55,6 @@ relclean:
 
 package: rel
 	make -C rel/pkg package
-
-zabbix:
-	sh generate_zabbix_template.sh
 
 ###
 ### Docs

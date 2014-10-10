@@ -1,6 +1,7 @@
 apps/watchdog/.eunit
 apps/watchdog/.rebar
 apps/watchdog/ebin
+rel/watchdog
 deps
 TAGS
 watchdog.version

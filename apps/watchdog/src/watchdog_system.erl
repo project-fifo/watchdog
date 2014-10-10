@@ -199,6 +199,7 @@ handle_info(tick, State = #state{id = ID}) ->
     run(ID, crash, {EType, id2s(ID)}, ?CRASH_THRESHOLD),
     erlang:send_after(?TICK, self(), tick),
     {noreply, State};
+
 handle_info(_Info, State) ->
     {noreply, State}.
 

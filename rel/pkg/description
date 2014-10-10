@@ -1,0 +1,4 @@
+Project FiFo's Sniffle is the central management instance. It's the one point where all the 
+componets connect together, storing VM, Hypervisor, package and dataset data.
+
+http://project-fifo.net/display/PF/Sniffle
