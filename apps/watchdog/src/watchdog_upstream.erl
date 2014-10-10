@@ -114,10 +114,12 @@ handle_cast(Msg, State = #state{socket = undefined, server = {Addr, Port},
                                 token = Token}) ->
     case gen_tcp:connect(Addr, Port, [binary, {packet, 2}], 500) of
         {ok, Sock} ->
+            lager:info("[upstream] Connected to ~s:~p", [Addr, Port]),
             {ok, Bin} = encode({auth, Token}),
             gen_tcp:send(Sock, Bin),
             handle_cast(Msg, State#state{socket = Sock});
-        _ ->
+        E ->
+            lager:error("[upstream] Error sending: ~p", [E]),
             {noreply, State}
     end;
 
@@ -127,7 +129,8 @@ handle_cast(Msg, State = #state{socket = Sock}) ->
             case gen_tcp:send(Sock, Bin) of
                 ok ->
                     {noreply, State};
-                _ ->
+                E ->
+                    lager:error("[upstream] Error sending: ~p", [E]),
                     {noreply, State#state{socket = undefined}}
             end;
         _ ->
@@ -192,37 +195,37 @@ encode({mfa, _Cluster, _System, _Node, _Module, _Function, _Arity, Level})
 
 encode({file, Cluster, System, Node, File, Line, Level}) ->
     {ok, <<1,
-           (length(Cluster)):8, Cluster/binary,
-           (length(System)):8, System/binary,
-           (length(Node)):8, Node/binary,
-           (length(File)):8, File/binary,
+           (byte_size(Cluster)):8, Cluster/binary,
+           (byte_size(System)):8, System/binary,
+           (byte_size(Node)):8, Node/binary,
+           (byte_size(File)):8, File/binary,
            Line:16, Level:8>>};
 
 encode({mfa, Cluster, System, Node, Module, Function, Arity, Level}) ->
     {ok, <<2,
-           (length(Cluster)):8, Cluster/binary,
-           (length(System)):8, System/binary,
-           (length(Node)):8, Node/binary,
-           (length(Module)):8, Module/binary,
-           (length(Function)):8, Function/binary,
+           (byte_size(Cluster)):8, Cluster/binary,
+           (byte_size(System)):8, System/binary,
+           (byte_size(Node)):8, Node/binary,
+           (byte_size(Module)):8, Module/binary,
+           (byte_size(Function)):8, Function/binary,
            Arity:8, Level:8>>};
 
 encode({rise_alert, Cluster, System, Node, Type, Alert, Severity}) ->
     {ok, <<3,
-           (length(Cluster)):8, Cluster/binary,
-           (length(System)):8, System/binary,
-           (length(Node)):8, Node/binary,
-           (length(Type)):8, Type/binary,
-           (length(Alert)):8, Alert/binary,
+           (byte_size(Cluster)):8, Cluster/binary,
+           (byte_size(System)):8, System/binary,
+           (byte_size(Node)):8, Node/binary,
+           (byte_size(Type)):8, Type/binary,
+           (byte_size(Alert)):8, Alert/binary,
            Severity:8>>};
 
 encode({clear_alert, Cluster, System, Node, Type, Alert}) ->
     {ok, <<4,
-           (length(Cluster)):8, Cluster/binary,
-           (length(System)):8, System/binary,
-           (length(Node)):8, Node/binary,
-           (length(Type)):8, Type/binary,
-           (length(Alert)):8, Alert/binary>>};
+           (byte_size(Cluster)):8, Cluster/binary,
+           (byte_size(System)):8, System/binary,
+           (byte_size(Node)):8, Node/binary,
+           (byte_size(Type)):8, Type/binary,
+           (byte_size(Alert)):8, Alert/binary>>};
 
 encode(_) ->
     bad_message.
