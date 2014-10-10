@@ -6,3 +6,7 @@ deps
 TAGS
 watchdog.version
 apps/watchdog/src/watchdog_version.hrl
+rel/pkg/build-info
+rel/pkg/deploy/fifo-watchdog
+rel/pkg/*.tgz
+rel/pkg/packlist
