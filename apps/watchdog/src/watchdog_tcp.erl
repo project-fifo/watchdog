@@ -25,8 +25,8 @@ loop(Socket, Transport) ->
         %% Simple keepalive
         {ok, Data} ->
             case binary_to_term(Data) of
-                {{_C, _S, _N} = CSN, Msg} ->
-                    watchdog_system:notify(CSN, Msg);
+                {{_C, _S, _N} = CSN, Vsn, Msg} ->
+                    watchdog_system:notify(CSN, Vsn, Msg);
                 T ->
                     io:format("Term: ~p~n", [T])
             end,

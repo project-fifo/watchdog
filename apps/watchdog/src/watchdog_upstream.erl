@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, clear/5, raise/6, mfa/7, file/6]).
+-export([start_link/0, clear/5, raise/6, mfa/8, file/7]).
 -ignore_xref([start_link/0]).
 
 %% gen_server callbacks
@@ -36,11 +36,11 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
-file(Cluster, System, Node, File, Line, Level) ->
-    gen_server:cast(?SERVER, {file, Cluster, System, Node, File, Line, Level}).
+file(Cluster, System, Node, Vsn, File, Line, Level) ->
+    gen_server:cast(?SERVER, {file, Cluster, System, Node, Vsn, File, Line, Level}).
 
-mfa(Cluster, System, Node, Module, Function, Arity, Level) ->
-    gen_server:cast(?SERVER, {mfa, Cluster, System, Node, Module, Function,
+mfa(Cluster, System, Node, Vsn, Module, Function, Arity, Level) ->
+    gen_server:cast(?SERVER, {mfa, Cluster, System, Node, Vsn, Module, Function,
                               Arity, Level}).
 
 raise(Cluster, System, Node, Type, Alert, Severity) ->
@@ -192,19 +192,21 @@ encode({mfa, _Cluster, _System, _Node, _Module, _Function, _Arity, Level})
   when Level =< 0 ->
     ignored;
 
-encode({file, Cluster, System, Node, File, Line, Level}) ->
+encode({file, Cluster, System, Node, Vsn, File, Line, Level}) ->
     {ok, <<1,
            (byte_size(Cluster)):8, Cluster/binary,
            (byte_size(System)):8, System/binary,
            (byte_size(Node)):8, Node/binary,
+           (byte_size(Vsn)):8, Vsn/binary,
            (byte_size(File)):8, File/binary,
            Line:16, Level:8>>};
 
-encode({mfa, Cluster, System, Node, Module, Function, Arity, Level}) ->
+encode({mfa, Cluster, System, Node, Vsn, Module, Function, Arity, Level}) ->
     {ok, <<2,
            (byte_size(Cluster)):8, Cluster/binary,
            (byte_size(System)):8, System/binary,
            (byte_size(Node)):8, Node/binary,
+           (byte_size(Vsn)):8, Vsn/binary,
            (byte_size(Module)):8, Module/binary,
            (byte_size(Function)):8, Function/binary,
            Arity:8, Level:8>>};

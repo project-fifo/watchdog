@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/4, notify/2]).
+-export([start_link/4, notify/3]).
 
 -ignore_xref([start_link/4]).
 
@@ -27,13 +27,13 @@
 -define(ERROR_THRESHOLD, 5).
 -define(CRASH_THRESHOLD, 1).
 
--record(state, {type, cluster, system, node, id, tbl, alarms = sets:new()}).
+-record(state, {type, cluster, system, node, version, id, tbl, alarms = sets:new()}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
-notify({C, S, N}, Msg) ->
+notify({C, S, N}, Vsn, Msg) ->
     CPid = case gproc:where({n, l, {cluster, C}}) of
                undefined ->
                    {ok,CPidX} = start(cluster, C, S, N),
@@ -41,7 +41,7 @@ notify({C, S, N}, Msg) ->
                CPidX ->
                    CPidX
            end,
-    gen_server:cast(CPid, {notify, Msg}),
+    gen_server:cast(CPid, {notify, Vsn, Msg}),
     SPid = case gproc:where({n, l, {system, S}}) of
                undefined ->
                    {ok, SPidX} = start(system, C, S, N),
@@ -49,7 +49,7 @@ notify({C, S, N}, Msg) ->
                SPidX ->
                    SPidX
     end,
-    gen_server:cast(SPid, {notify, Msg}),
+    gen_server:cast(SPid, {notify, Vsn, Msg}),
     NPid = case gproc:where({n, l, {node, N}}) of
                undefined ->
                    {ok, NPidX} = start(node, C, S, N),
@@ -57,7 +57,7 @@ notify({C, S, N}, Msg) ->
                NPidX ->
                    NPidX
            end,
-    gen_server:cast(NPid, {notify, Msg}).
+    gen_server:cast(NPid, {notify, Vsn, Msg}).
 
 start(Type, C, S, N) ->
     supervisor:start_child(watchdog_system_sup, [Type, C, S, N]).
@@ -128,13 +128,13 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({notify, {_, {flf, <<"gen_server.erl">>, _L, _F}}}, State) ->
+handle_cast({notify, _Vsn, {_, {flf, <<"gen_server.erl">>, _L, _F}}}, State) ->
     {noreply, State};
 
-handle_cast({notify, {{lager, Lvl}, {flf, File, Line, _Function}}},
+handle_cast({notify, Vsn, {{lager, Lvl}, {flf, File, Line, _Function}}},
             State = #state{id = ID}) ->
     Name = {ID, {File, Line}},
-    report(ID, File, Line, level_to_int(Lvl)),
+    report(ID, Vsn, File, Line, level_to_int(Lvl)),
 
     case folsom_metrics:new_spiral(Name) of
         ok ->
@@ -145,10 +145,10 @@ handle_cast({notify, {{lager, Lvl}, {flf, File, Line, _Function}}},
     folsom_metrics:notify({Name, 1}),
     {noreply, State};
 
-handle_cast({notify, {_Error, {mfaf, {_M, _F, _A, {File, Line}}}}},
+handle_cast({notify, Vsn, {_Error, {mfaf, {_M, _F, _A, {File, Line}}}}},
             State = #state{id = ID}) ->
     Name = {ID, {File, Line}},
-    report(ID, File, Line, 4),
+    report(ID, Vsn, File, Line, 4),
     case folsom_metrics:new_spiral(Name) of
         ok ->
             folsom_metrics:tag_metric(Name, {ID, crash});
@@ -158,13 +158,13 @@ handle_cast({notify, {_Error, {mfaf, {_M, _F, _A, {File, Line}}}}},
     folsom_metrics:notify({Name, 1}),
     {noreply, State};
 
-handle_cast({notify, {_Error, {mfa, {<<"gen_server">>, _ , _}}}}, State) ->
+handle_cast({notify, _Vsn, {_Error, {mfa, {<<"gen_server">>, _ , _}}}}, State) ->
     {noreply, State};
 
-handle_cast({notify, {_Error, {mfa, MFA}}},
+handle_cast({notify, Vsn, {_Error, {mfa, MFA}}},
             State = #state{id = ID}) ->
     Name = {ID, MFA},
-    report(ID, MFA, 4),
+    report(ID, Vsn, MFA, 4),
     case folsom_metrics:new_spiral(Name) of
         ok ->
             folsom_metrics:tag_metric(Name, {ID, crash});
@@ -174,21 +174,21 @@ handle_cast({notify, {_Error, {mfa, MFA}}},
     folsom_metrics:notify({Name, 1}),
     {noreply, State};
 
-handle_cast({notify, Msg}, State) ->
+handle_cast({notify, _, Msg}, State) ->
     io:format("Msg: ~p~n", [Msg]),
     {noreply, State};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-report({C, S, N}, File, Line, Level) ->
-    watchdog_upstream:file(C, S, N, File, Line, Level);
-report(_, _, _, _) ->
+report({C, S, N}, Vsn, File, Line, Level) ->
+    watchdog_upstream:file(C, S, N, Vsn, File, Line, Level);
+report(_, _, _, _, _) ->
     ok.
 
-report({C, S, N}, {M, F, A}, Level) ->
-    watchdog_upstream:mfa(C, S, N, M, F, A, Level);
-report(_, _, _) ->
+report({C, S, N}, Vsn, {M, F, A}, Level) ->
+    watchdog_upstream:mfa(C, S, N, Vsn, M, F, A, Level);
+report(_, _, _, _) ->
     ok.
 
 level_to_int(debug) ->
