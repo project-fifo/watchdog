@@ -10,7 +10,8 @@
                   folsom,
                   elarm,
                   gproc,
-                  lager
+                  lager,
+                  ssl
                  ]},
   {mod, { watchdog_app, []}},
   {env, []}

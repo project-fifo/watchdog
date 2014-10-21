@@ -8,7 +8,7 @@
 
 %% @doc Upstream server
 {mapping, "upstream", "watchdog.upstream_server",
- [{commented, {"127.0.0.1", 4445}},
+ [{commented, {"watchdog-upstream.project-fifo.net", 4445}},
   {datatype, ip}]}.
 
 {mapping, "authtoken", "watchdog.auth_token",

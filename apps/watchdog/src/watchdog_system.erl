@@ -134,7 +134,7 @@ handle_cast({notify, _Vsn, {_, {flf, <<"gen_server.erl">>, _L, _F}}}, State) ->
 handle_cast({notify, Vsn, {{lager, Lvl}, {flf, File, Line, _Function}}},
             State = #state{id = ID}) ->
     Name = {ID, {File, Line}},
-    report(ID, Vsn, File, Line, level_to_int(Lvl)),
+    report(ID, Vsn, File, Line, lager, level_to_int(Lvl)),
 
     case folsom_metrics:new_spiral(Name) of
         ok ->
@@ -145,10 +145,10 @@ handle_cast({notify, Vsn, {{lager, Lvl}, {flf, File, Line, _Function}}},
     folsom_metrics:notify({Name, 1}),
     {noreply, State};
 
-handle_cast({notify, Vsn, {_Error, {mfaf, {_M, _F, _A, {File, Line}}}}},
+handle_cast({notify, Vsn, {Error, {mfaf, {_M, _F, _A, {File, Line}}}}},
             State = #state{id = ID}) ->
     Name = {ID, {File, Line}},
-    report(ID, Vsn, File, Line, 4),
+    report(ID, Vsn, File, Line, Error, 4),
     case folsom_metrics:new_spiral(Name) of
         ok ->
             folsom_metrics:tag_metric(Name, {ID, crash});
@@ -161,10 +161,10 @@ handle_cast({notify, Vsn, {_Error, {mfaf, {_M, _F, _A, {File, Line}}}}},
 handle_cast({notify, _Vsn, {_Error, {mfa, {<<"gen_server">>, _ , _}}}}, State) ->
     {noreply, State};
 
-handle_cast({notify, Vsn, {_Error, {mfa, MFA}}},
+handle_cast({notify, Vsn, {Error, {mfa, MFA}}},
             State = #state{id = ID}) ->
     Name = {ID, MFA},
-    report(ID, Vsn, MFA, 4),
+    report(ID, Vsn, MFA, Error, 4),
     case folsom_metrics:new_spiral(Name) of
         ok ->
             folsom_metrics:tag_metric(Name, {ID, crash});
@@ -181,14 +181,18 @@ handle_cast({notify, _, Msg}, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-report({C, S, N}, Vsn, File, Line, Level) ->
-    watchdog_upstream:file(C, S, N, Vsn, File, Line, Level);
-report(_, _, _, _, _) ->
+t2b(Term) ->
+    list_to_binary(io_lib:format("~p", [Term])).
+
+report({C, S, N}, Vsn, File, Line, Error, Level) ->
+    watchdog_upstream:file(C, S, N, Vsn, File, Line, t2b(Error), Level);
+
+report(_, _, _, _, _, _) ->
     ok.
 
-report({C, S, N}, Vsn, {M, F, A}, Level) ->
-    watchdog_upstream:mfa(C, S, N, Vsn, M, F, A, Level);
-report(_, _, _, _) ->
+report({C, S, N}, Vsn, {M, F, A}, Error, Level) ->
+    watchdog_upstream:mfa(C, S, N, Vsn, M, F, A, t2b(Error), Level);
+report(_, _, _, _, _) ->
     ok.
 
 level_to_int(debug) ->
@@ -255,7 +259,7 @@ run_list([{{_ID, {File, Line}} = Metric, [{count, _Cnt}, {one, 0}]} | R],
     S2 = clear(file_error, <<File/binary, ":", (i2b(Line))/binary>>, S1),
     run_list(R, Threshold, Total, S2);
 
-run_list([{{_ID, {_File, _Line}}, [{count, _Cnt},{one, One}]} | R],
+run_list([{{_ID, {_File, _Line}}, [{count, _Cnt}, {one, One}]} | R],
          Threshold, Total, S1) ->
     run_list(R, Threshold, Total + One, S1);
 

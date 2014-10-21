@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, clear/5, raise/6, mfa/8, file/7]).
+-export([start_link/0, clear/5, raise/6, mfa/9, file/8]).
 -ignore_xref([start_link/0]).
 
 %% gen_server callbacks
@@ -19,6 +19,8 @@
          terminate/2, code_change/3]).
 
 -define(SERVER, ?MODULE).
+%-define(TRANSPORT, gen_tcp).
+-define(TRANSPORT, ssl).
 
 -record(state, {server, token, socket}).
 
@@ -36,15 +38,17 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
-file(Cluster, System, Node, Vsn, File, Line, Level) ->
-    gen_server:cast(?SERVER, {file, Cluster, System, Node, Vsn, File, Line, Level}).
+file(Cluster, System, Node, Vsn, File, Line, Error, Level) ->
+    gen_server:cast(?SERVER, {file, Cluster, System, Node, Vsn, File, Line,
+                              Error, Level}).
 
-mfa(Cluster, System, Node, Vsn, Module, Function, Arity, Level) ->
+mfa(Cluster, System, Node, Vsn, Module, Function, Arity, Error, Severity) ->
     gen_server:cast(?SERVER, {mfa, Cluster, System, Node, Vsn, Module, Function,
-                              Arity, Level}).
+                              Arity, Error, Severity}).
 
 raise(Cluster, System, Node, Type, Alert, Severity) ->
-    gen_server:cast(?SERVER, {raise_alert, Cluster, System, Node, Type, Alert, Severity}).
+    gen_server:cast(?SERVER, {raise_alert, Cluster, System, Node, Type, Alert,
+                              Severity}).
 
 clear(Cluster, System, Node, Type, Alert) ->
     gen_server:cast(?SERVER, {clear_alert, Cluster, System, Node, Type, Alert}).
@@ -111,21 +115,21 @@ handle_cast(_Msg, State = #state{token = undefined}) ->
 
 handle_cast(Msg, State = #state{socket = undefined, server = {Addr, Port},
                                 token = Token}) ->
-    case gen_tcp:connect(Addr, Port, [binary, {packet, 2}], 500) of
+    case ?TRANSPORT:connect(Addr, Port, [binary, {packet, 2}], 500) of
         {ok, Sock} ->
             lager:info("[upstream] Connected to ~s:~p", [Addr, Port]),
             {ok, Bin} = encode({auth, Token}),
-            gen_tcp:send(Sock, Bin),
+            ?TRANSPORT:send(Sock, Bin),
             handle_cast(Msg, State#state{socket = Sock});
         E ->
-            lager:error("[upstream] Error sending: ~p", [E]),
+            lager:error("[upstream] Error connecting: ~p", [E]),
             {noreply, State}
     end;
 
 handle_cast(Msg, State = #state{socket = Sock}) ->
     case encode(Msg) of
         {ok, Bin} ->
-            case gen_tcp:send(Sock, Bin) of
+            case ?TRANSPORT:send(Sock, Bin) of
                 ok ->
                     {noreply, State};
                 E ->
@@ -185,23 +189,26 @@ code_change(_OldVsn, State, _Extra) ->
 encode({auth, Token}) ->
     {ok, <<0, Token:36/binary>>};
 
-encode({file, _Cluster, _System, _Node, _File, _Line, Level}) when Level =< 0 ->
-    ignored;
-
-encode({mfa, _Cluster, _System, _Node, _Module, _Function, _Arity, Level})
+encode({file, _Cluster, _System, _Node, _File, _Line, _Error, Level})
   when Level =< 0 ->
     ignored;
 
-encode({file, Cluster, System, Node, Vsn, File, Line, Level}) ->
+encode({mfa, _Cluster, _System, _Node, _Module, _Function, _Arity, _Error, Level})
+  when Level =< 0 ->
+    ignored;
+
+encode({file, Cluster, System, Node, Vsn, File, Line, Error, Level}) ->
     {ok, <<1,
            (byte_size(Cluster)):8, Cluster/binary,
            (byte_size(System)):8, System/binary,
            (byte_size(Node)):8, Node/binary,
            (byte_size(Vsn)):8, Vsn/binary,
            (byte_size(File)):8, File/binary,
-           Line:16, Level:8>>};
+           Line:16,
+           (byte_size(Error)):8, Error/binary,
+           Level:8>>};
 
-encode({mfa, Cluster, System, Node, Vsn, Module, Function, Arity, Level}) ->
+encode({mfa, Cluster, System, Node, Vsn, Module, Function, Arity, Error, Level}) ->
     {ok, <<2,
            (byte_size(Cluster)):8, Cluster/binary,
            (byte_size(System)):8, System/binary,
@@ -209,7 +216,9 @@ encode({mfa, Cluster, System, Node, Vsn, Module, Function, Arity, Level}) ->
            (byte_size(Vsn)):8, Vsn/binary,
            (byte_size(Module)):8, Module/binary,
            (byte_size(Function)):8, Function/binary,
-           Arity:8, Level:8>>};
+           Arity:8,
+           (byte_size(Error)):8, Error/binary,
+           Level:8>>};
 
 encode({raise_alert, Cluster, System, Node, Type, Alert, Severity}) ->
     {ok, <<3,
