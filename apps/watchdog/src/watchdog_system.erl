@@ -258,7 +258,7 @@ handle_info(tick, State = #state{id = ID}) ->
     {N2, S2} = run(ID, warning, ?WARN_THRESHOLD, S1, N1),
     {N3, S3} = run(ID, error, ?ERROR_THRESHOLD, S2, N2),
     S5 = case run(ID, crash, ?CRASH_THRESHOLD, S3, N3) of
-             {E, S4} when E >= 0 ->
+             {E, S4} when E > 0 ->
                  raise(EType, EID, E, S4);
              {0, S4} ->
                  clear(EType, EID, S4);
