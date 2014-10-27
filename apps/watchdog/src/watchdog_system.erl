@@ -33,6 +33,26 @@
 %%% API
 %%%===================================================================
 
+notify({C, S, N}, _Vsn, {raise, Type, Alert, Severity}) ->
+    NPid = case gproc:where({n, l, {node, N}}) of
+               undefined ->
+                   {ok, NPidX} = start(node, C, S, N),
+                   NPidX;
+               NPidX ->
+                   NPidX
+           end,
+    gen_server:cast(NPid, {raise, Type, Alert, Severity});
+
+notify({C, S, N}, _Vsn, {clear, Type, Alert}) ->
+    NPid = case gproc:where({n, l, {node, N}}) of
+               undefined ->
+                   {ok, NPidX} = start(node, C, S, N),
+                   NPidX;
+               NPidX ->
+                   NPidX
+           end,
+    gen_server:cast(NPid, {clear, Type, Alert});
+
 notify({C, S, N}, Vsn, Msg) ->
     CPid = case gproc:where({n, l, {cluster, C}}) of
                undefined ->
@@ -88,14 +108,17 @@ start_link(Type, C, S, N) ->
 %% @end
 %%--------------------------------------------------------------------
 init([cluster, C, S, N]) ->
+    lager:info("[watchdog] Starting cluster ~s/~s/~s", [C, S, N]),
     erlang:send_after(?TICK, self(), tick),
     gproc:reg({n, l, {cluster, C}}, cluster),
     {ok, #state{type = cluster, cluster = C, system = S, node = N, id = C}};
 init([system, C, S, N]) ->
+    lager:info("[watchdog] Starting system ~s/~s/~s", [C, S, N]),
     erlang:send_after(?TICK, self(), tick),
     gproc:reg({n, l, {system, S}}, system),
     {ok, #state{type = system, cluster = C, system = S, node = N, id = {C, S}}};
 init([node, C, S, N]) ->
+    lager:info("[watchdog] Starting node ~s/~s/~s", [C, S, N]),
     erlang:send_after(?TICK, self(), tick),
     gproc:reg({n, l, {node, N}}, node),
     {ok, #state{type = node, cluster = C, system = S, node = N, id = {C, S, N}}}.
@@ -128,6 +151,13 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({raise, Type, Alert, Severity}, State) ->
+    State1 = raise(Type, Alert, Severity, State),
+    {noreply, State1};
+handle_cast({clear, Type, Alert}, State) ->
+    State1 = clear(Type, Alert, State),
+    {noreply, State1};
+
 handle_cast({notify, _Vsn, {_, {flf, <<"gen_server.erl">>, _L, _F}}}, State) ->
     {noreply, State};
 
