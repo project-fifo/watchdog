@@ -165,7 +165,6 @@ handle_cast({notify, Vsn, {{lager, Lvl}, {flf, File, Line, _Function}}},
             State = #state{id = ID}) ->
     Name = {ID, {File, Line}},
     report(ID, Vsn, File, Line, lager, level_to_int(Lvl)),
-
     case folsom_metrics:new_spiral(Name) of
         ok ->
             folsom_metrics:tag_metric(Name, {ID, Lvl});
@@ -254,12 +253,20 @@ handle_info(tick, State = #state{id = ID}) ->
                 system -> system_error;
                 cluster -> cluster_error
             end,
-    S1 = run(ID, info, {EType, id2s(ID)},  ?INFO_THRESHOLD, State),
-    S2 = run(ID, warning, {EType, id2s(ID)}, ?WARN_THRESHOLD, S1),
-    S3 = run(ID, error, {EType, id2s(ID)}, ?ERROR_THRESHOLD, S2),
-    S4 = run(ID, crash, {EType, id2s(ID)}, ?CRASH_THRESHOLD, S3),
+    EID = id2s(ID),
+    {N1, S1} = run(ID, info,  ?INFO_THRESHOLD, State, 0),
+    {N2, S2} = run(ID, warning, ?WARN_THRESHOLD, S1, N1),
+    {N3, S3} = run(ID, error, ?ERROR_THRESHOLD, S2, N2),
+    S5 = case run(ID, crash, ?CRASH_THRESHOLD, S3, N3) of
+             {E, S4} when E >= 0 ->
+                 raise(EType, EID, E, S4);
+             {0, S4} ->
+                 clear(EType, EID, S4);
+             {_, S4} ->
+                 S4
+         end,
     erlang:send_after(?TICK, self(), tick),
-    {noreply, S4};
+    {noreply, S5};
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -267,14 +274,12 @@ handle_info(_Info, State) ->
 run(_ID, _Lvl, _, undefined, S1) ->
     S1;
 
-run(ID, Lvl, {EType, EID}, Threshold, S1) ->
+run(ID, Lvl, Threshold, S1, N) ->
     case run_list(folsom_metrics:get_metrics_value({ID, Lvl}), Threshold, 0, S1) of
         {E, S2} when E >= Threshold ->
-            raise(EType, EID, E, S2);
-        {0, S2} ->
-            clear(EType, EID, S2);
+            {N + E, S2};
         {_, S2} ->
-            S2
+            {N, S2}
     end.
 
 run_list([{{_ID, {File, Line}}, [{count, _Cnt},{one, One}]} | R],
