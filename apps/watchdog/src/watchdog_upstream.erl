@@ -22,7 +22,7 @@
 %-define(TRANSPORT, gen_tcp).
 -define(TRANSPORT, ssl).
 
--record(state, {server, token, socket, connect_timeout = 1000}).
+-record(state, {server, token, socket, connect_timeout = 5000}).
 
 %%%===================================================================
 %%% API
