@@ -22,7 +22,7 @@
 %-define(TRANSPORT, gen_tcp).
 -define(TRANSPORT, ssl).
 
--record(state, {server, token, socket}).
+-record(state, {server, token, socket, connect_timeout = 1000}).
 
 %%%===================================================================
 %%% API
@@ -114,8 +114,8 @@ handle_cast(_Msg, State = #state{token = undefined}) ->
     {noreply, State};
 
 handle_cast(Msg, State = #state{socket = undefined, server = {Addr, Port},
-                                token = Token}) ->
-    case ?TRANSPORT:connect(Addr, Port, [binary, {packet, 2}], 500) of
+                                token = Token, connect_timeout = Timeout}) ->
+    case ?TRANSPORT:connect(Addr, Port, [binary, {packet, 2}], Timeout) of
         {ok, Sock} ->
             lager:info("[upstream] Connected to ~s:~p", [Addr, Port]),
             {ok, Bin} = encode({auth, Token}),
