@@ -19,8 +19,6 @@
          terminate/2, code_change/3]).
 
 -define(SERVER, ?MODULE).
-%-define(TRANSPORT, gen_tcp).
--define(TRANSPORT, ssl).
 
 -record(state, {server, token, socket, connect_timeout = 5000}).
 
@@ -110,30 +108,33 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State = #state{server = undefined}) ->
     {noreply, State};
 
+
 handle_cast(_Msg, State = #state{token = undefined}) ->
     {noreply, State};
 
 handle_cast(Msg, State = #state{socket = undefined, server = {Addr, Port},
                                 token = Token, connect_timeout = Timeout}) ->
-    case ?TRANSPORT:connect(Addr, Port, [binary, {packet, 2}], Timeout) of
+    case ssl:connect(Addr, Port, [binary, {packet, 2}], Timeout) of
         {ok, Sock} ->
             lager:info("[upstream] Connected to ~s:~p", [Addr, Port]),
             {ok, Bin} = encode({auth, Token}),
-            ?TRANSPORT:send(Sock, Bin),
+            ssl:send(Sock, Bin),
             handle_cast(Msg, State#state{socket = Sock});
         E ->
-            lager:error("[upstream] Error connecting: ~p", [E]),
+            lager:error("[upstream] Error connecting to ~s:~p: ~p",
+                        [Addr, Port, E]),
             {noreply, State}
     end;
 
 handle_cast(Msg, State = #state{socket = Sock}) ->
     case encode(Msg) of
         {ok, Bin} ->
-            case ?TRANSPORT:send(Sock, Bin) of
+            case ssl:send(Sock, Bin) of
                 ok ->
                     {noreply, State};
                 E ->
                     lager:error("[upstream] Error sending: ~p", [E]),
+                    ssl:close(Sock),
                     {noreply, State#state{socket = undefined}}
             end;
         _ ->
@@ -237,5 +238,6 @@ encode({clear_alert, Cluster, System, Node, Type, Alert}) ->
            (byte_size(Type)):8, Type/binary,
            (byte_size(Alert)):8, Alert/binary>>};
 
-encode(_) ->
+encode(Msg) ->
+    lager:error("[watchdog:ssl] Unsupported message: ~p", [Msg]),
     bad_message.

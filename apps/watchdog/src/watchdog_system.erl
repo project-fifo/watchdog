@@ -204,7 +204,7 @@ handle_cast({notify, Vsn, {Error, {mfa, MFA}}},
     {noreply, State};
 
 handle_cast({notify, _, Msg}, State) ->
-    io:format("Msg: ~p~n", [Msg]),
+    lager:info("[system] Unknown message: ~p~n", [Msg]),
     {noreply, State};
 
 handle_cast(_Msg, State) ->

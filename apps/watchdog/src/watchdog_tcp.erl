@@ -22,18 +22,17 @@ init(Ref, Socket, Transport, _Opts = []) ->
 
 loop(Socket, Transport) ->
     case Transport:recv(Socket, 0, 5000) of
-        %% Simple keepalive
         {ok, Data} ->
             case binary_to_term(Data) of
                 {{_C, _S, _N} = CSN, Vsn, Msg} ->
                     watchdog_system:notify(CSN, Vsn, Msg);
                 T ->
-                    io:format("Term: ~p~n", [T])
+                    lager:warning("[tcp] Unknown term: ~p", [T])
             end,
             loop(Socket, Transport);
         {error,timeout} ->
             loop(Socket, Transport);
         E ->
-            io:format("E: ~p~n", [E]),
+            lager:warning("[tcp] closing with: ~p", [E]),
             ok = Transport:close(Socket)
     end.
