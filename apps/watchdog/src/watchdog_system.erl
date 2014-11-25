@@ -27,7 +27,15 @@
 -define(ERROR_THRESHOLD, 5).
 -define(CRASH_THRESHOLD, 1).
 
--record(state, {type, cluster, system, node, version, id, tbl, alarms = sets:new()}).
+-define(CLUSTER_MULT, 10).
+
+-record(state, {type, cluster, system, node, version, id, tbl, alarms = sets:new(),
+                info_threshold = undefined,
+                warn_threshold = 50,
+                error_threshold = 5,
+                crash_threshold = 1,
+                threshold_mult = 1
+               }).
 
 %%%===================================================================
 %%% API
@@ -111,12 +119,14 @@ init([cluster, C, S, N]) ->
     lager:info("[watchdog] Starting cluster ~s/~s/~s", [C, S, N]),
     erlang:send_after(?TICK, self(), tick),
     gproc:reg({n, l, {cluster, C}}, cluster),
-    {ok, #state{type = cluster, cluster = C, system = S, node = N, id = C}};
+    {ok, #state{type = cluster, cluster = C, system = S, node = N, id = C,
+     threshold_mult = 50}};
 init([system, C, S, N]) ->
     lager:info("[watchdog] Starting system ~s/~s/~s", [C, S, N]),
     erlang:send_after(?TICK, self(), tick),
     gproc:reg({n, l, {system, S}}, system),
-    {ok, #state{type = system, cluster = C, system = S, node = N, id = {C, S}}};
+    {ok, #state{type = system, cluster = C, system = S, node = N, id = {C, S},
+                threshold_mult = 10}};
 init([node, C, S, N]) ->
     lager:info("[watchdog] Starting node ~s/~s/~s", [C, S, N]),
     erlang:send_after(?TICK, self(), tick),
@@ -154,6 +164,7 @@ handle_call(_Request, _From, State) ->
 handle_cast({raise, Type, Alert, Severity}, State) ->
     State1 = raise(Type, Alert, Severity, State),
     {noreply, State1};
+
 handle_cast({clear, Type, Alert}, State) ->
     State1 = clear(Type, Alert, State),
     {noreply, State1};
@@ -172,6 +183,10 @@ handle_cast({notify, Vsn, {{lager, Lvl}, {flf, File, Line, _Function}}},
             ok
     end,
     folsom_metrics:notify({Name, 1}),
+    {noreply, State};
+
+handle_cast({notify, _, {_, {mfaf, {_M, _F, _A, {<<"gen_server.erl">>, _}}}}},
+            State) ->
     {noreply, State};
 
 handle_cast({notify, Vsn, {Error, {mfaf, {_M, _F, _A, {File, Line}}}}},
@@ -247,17 +262,17 @@ level_to_int(_) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info(tick, State = #state{id = ID}) ->
+handle_info(tick, State = #state{id = ID, threshold_mult = Mul}) ->
     EType = case State#state.type of
                 node -> node_error;
                 system -> system_error;
                 cluster -> cluster_error
             end,
     EID = id2s(ID),
-    {N1, S1} = run(ID, info,  ?INFO_THRESHOLD, State, 0),
-    {N2, S2} = run(ID, warning, ?WARN_THRESHOLD, S1, N1),
-    {N3, S3} = run(ID, error, ?ERROR_THRESHOLD, S2, N2),
-    S5 = case run(ID, crash, ?CRASH_THRESHOLD, S3, N3) of
+    {N1, S1} = run(ID, info,  State#state.info_threshold * Mul, State, 0),
+    {N2, S2} = run(ID, warning, State#state.warn_threshold * Mul, S1, N1),
+    {N3, S3} = run(ID, error, State#state.error_threshold * Mul, S2, N2),
+    S5 = case run(ID, crash, State#state.crash_threshold * Mul, S3, N3) of
              {E, S4} when E > 0 ->
                  raise(EType, EID, E, S4);
              {0, S4} ->
@@ -271,8 +286,8 @@ handle_info(tick, State = #state{id = ID}) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
-run(_ID, _Lvl, _, undefined, S1) ->
-    S1;
+run(_ID, _Lvl, undefined, S1, N) ->
+    {N, S1};
 
 run(ID, Lvl, Threshold, S1, N) ->
     case run_list(folsom_metrics:get_metrics_value({ID, Lvl}), Threshold, 0, S1) of
