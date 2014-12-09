@@ -292,7 +292,12 @@ handle_info(tick, State = #state{id = ID, threshold_mult = Mul}) ->
                 cluster -> cluster_error
             end,
     EID = id2s(ID),
-    {N1, S1} = run(ID, info,  State#state.info_threshold * Mul, State, 0),
+    {N1, S1} = case State#state.info_threshold of
+                   undefined ->
+                       {0, State};
+                   IT ->
+                       run(ID, info, IT  * Mul, State, 0)
+               end,
     {N2, S2} = run(ID, warning, State#state.warn_threshold * Mul, S1, N1),
     {N3, S3} = run(ID, error, State#state.error_threshold * Mul, S2, N2),
     S5 = case run(ID, crash, State#state.crash_threshold * Mul, S3, N3) of
