@@ -21,7 +21,6 @@
 
 -define(SERVER, ?MODULE).
 -define(TICK, 10*1000). %10s
-
 -define(INFO_THRESHOLD, undefined).
 -define(WARN_THRESHOLD, 50).
 -define(ERROR_THRESHOLD, 5).
@@ -30,6 +29,8 @@
 -define(CLUSTER_MULT, 10).
 
 -record(state, {type, cluster, system, node, version, id, tbl, alarms = sets:new(),
+                ping_miss = 0,
+                max_ping_miss = 6,
                 info_threshold = undefined,
                 warn_threshold = 50,
                 error_threshold = 5,
@@ -50,6 +51,16 @@ notify({C, S, N}, _Vsn, {raise, Type, Alert, Severity}) ->
                    NPidX
            end,
     gen_server:cast(NPid, {raise, Type, Alert, Severity});
+
+notify({C, S, N}, Vsn, ping) ->
+    NPid = case gproc:where({n, l, {node, N}}) of
+               undefined ->
+                   {ok, NPidX} = start(node, C, S, N),
+                   NPidX;
+               NPidX ->
+                   NPidX
+           end,
+    gen_server:cast(NPid, {ping, Vsn});
 
 notify({C, S, N}, _Vsn, {clear, Type, Alert}) ->
     NPid = case gproc:where({n, l, {node, N}}) of
@@ -161,6 +172,10 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({ping, Vsn}, State = #state{id = ID}) ->
+    State1 = State#state{ping_miss = 0, version = Vsn},
+    {noreply, clear(node_down, id2s(ID), State1)};
+
 handle_cast({raise, Type, Alert, Severity}, State) ->
     State1 = raise(Type, Alert, Severity, State),
     {noreply, State1};
@@ -262,6 +277,14 @@ level_to_int(_) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+check_ping(State = #state{type = T}) when T =/= node ->
+    State;
+check_ping(State = #state{ping_miss = Miss, id = ID,
+                          max_ping_miss = Max}) when Miss > Max ->
+    raise(node_down, id2s(ID), Miss, State);
+check_ping(State = #state{ping_miss = Miss}) ->
+    State#state{ping_miss = Miss + 1}.
+
 handle_info(tick, State = #state{id = ID, threshold_mult = Mul}) ->
     EType = case State#state.type of
                 node -> node_error;
@@ -280,8 +303,9 @@ handle_info(tick, State = #state{id = ID, threshold_mult = Mul}) ->
              {_, S4} ->
                  S4
          end,
+    S6 = check_ping(S5),
     erlang:send_after(?TICK, self(), tick),
-    {noreply, S5};
+    {noreply, S6};
 
 handle_info(_Info, State) ->
     {noreply, State}.
