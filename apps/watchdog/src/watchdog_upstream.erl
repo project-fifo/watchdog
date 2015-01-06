@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, clear/5, raise/6, mfa/9, file/8]).
+-export([start_link/0, clear/5, raise/6, mfa/9, file/8, ping/4]).
 -ignore_xref([start_link/0]).
 
 %% gen_server callbacks
@@ -50,6 +50,9 @@ raise(Cluster, System, Node, Type, Alert, Severity) ->
 
 clear(Cluster, System, Node, Type, Alert) ->
     gen_server:cast(?SERVER, {clear_alert, Cluster, System, Node, Type, Alert}).
+
+ping(Cluster, System, Node, Vsn) ->
+    gen_server:cast(?SERVER, {ping, Cluster, System, Node, Vsn}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -237,6 +240,13 @@ encode({clear_alert, Cluster, System, Node, Type, Alert}) ->
            (byte_size(Node)):8, Node/binary,
            (byte_size(Type)):8, Type/binary,
            (byte_size(Alert)):8, Alert/binary>>};
+
+encode({ping, Cluster, System, Node, Vsn}) ->
+    {ok, <<5,
+           (byte_size(Cluster)):8, Cluster/binary,
+           (byte_size(System)):8, System/binary,
+           (byte_size(Node)):8, Node/binary,
+           (byte_size(Vsn)):8, Vsn/binary>>};
 
 encode(Msg) ->
     lager:error("[watchdog:ssl] Unsupported message: ~p", [Msg]),

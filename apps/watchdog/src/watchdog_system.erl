@@ -172,8 +172,9 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({ping, Vsn}, State = #state{id = ID}) ->
+handle_cast({ping, Vsn}, State = #state{id = ID = {Cluster, System, Node}}) ->
     State1 = State#state{ping_miss = 0, version = Vsn},
+    watchdog_upstream:ping(Cluster, System, Node, Vsn),
     {noreply, clear(node_down, id2s(ID), State1)};
 
 handle_cast({raise, Type, Alert, Severity}, State) ->
@@ -251,6 +252,7 @@ report(_, _, _, _, _, _) ->
 
 report({C, S, N}, Vsn, {M, F, A}, Error, Level) ->
     watchdog_upstream:mfa(C, S, N, Vsn, M, F, A, t2b(Error), Level);
+
 report(_, _, _, _, _) ->
     ok.
 
@@ -279,9 +281,11 @@ level_to_int(_) ->
 %%--------------------------------------------------------------------
 check_ping(State = #state{type = T}) when T =/= node ->
     State;
+
 check_ping(State = #state{ping_miss = Miss, id = ID,
                           max_ping_miss = Max}) when Miss > Max ->
     raise(node_down, id2s(ID), Miss, State);
+
 check_ping(State = #state{ping_miss = Miss}) ->
     State#state{ping_miss = Miss + 1}.
 
