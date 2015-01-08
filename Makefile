@@ -46,7 +46,7 @@ quick-test:
 	[ -d apps/watchdog/.eunit ] && rm -r apps/watchdog/.eunit || true
 	$(REBAR) -DEQC_SHORT_TEST skip_deps=true eunit -r -v
 
-rel: relclean ell
+rel: relclean all
 	$(REBAR) generate
 
 relclean:
