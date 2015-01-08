@@ -28,12 +28,12 @@ distclean: clean devclean relclean
 	$(REBAR) delete-deps
 
 long-test:
-	-rm -r apps/watchdog/.eunit
+	[ -d apps/watchdog/.eunit ] && rm -r apps/watchdog/.eunit || true
 	$(REBAR) skip_deps=true -DEQC_LONG_TESTS eunit -v -r
 
 eunit: 
 	$(REBAR) compile
-	-rm -r apps/watchdog/.eunit
+	[ -d apps/watchdog/.eunit ] && rm -r apps/watchdog/.eunit || true
 	$(REBAR) eunit skip_deps=true -r -v
 
 test: eunit
@@ -43,15 +43,14 @@ quick-xref:
 	$(REBAR) xref skip_deps=true -r
 
 quick-test:
-	-rm -r apps/watchdog/.eunit
+	[ -d apps/watchdog/.eunit ] && rm -r apps/watchdog/.eunit || true
 	$(REBAR) -DEQC_SHORT_TEST skip_deps=true eunit -r -v
 
-rel: all
-	-rm -r rel/watchdog/share
+rel: relclean ell
 	$(REBAR) generate
 
 relclean:
-	rm -rf rel/watchdog
+	[ -d rel/watchdog ] && rm -rf rel/watchdog || true
 
 package: rel
 	make -C rel/pkg package
