@@ -28,15 +28,23 @@
 
 -define(CLUSTER_MULT, 10).
 
--record(state, {type, cluster, system, node, version, id, tbl, alarms = sets:new(),
-                ping_miss = 0,
-                max_ping_miss = 6,
-                info_threshold = undefined,
-                warn_threshold = 50,
-                error_threshold = 5,
-                crash_threshold = 1,
-                threshold_mult = 1
-               }).
+-record(state, {
+          type,
+          cluster,
+          system,
+          node,
+          version,
+          id,
+          tbl,
+          alarms = sets:new(),
+          ping_miss = 0 :: pos_integer() | 0,
+          max_ping_miss = 6 :: pos_integer(),
+          info_threshold = undefined :: pos_integer() | undefined,
+          warn_threshold = 50 :: pos_integer() | undefined,
+          error_threshold = 5 :: pos_integer() | undefined,
+          crash_threshold = 1 :: pos_integer() | undefined,
+          threshold_mult = 1
+         }).
 
 %%%===================================================================
 %%% API
@@ -318,9 +326,6 @@ handle_info(tick, State = #state{id = ID, threshold_mult = Mul}) ->
 
 handle_info(_Info, State) ->
     {noreply, State}.
-
-run(_ID, _Lvl, undefined, S1, N) ->
-    {N, S1};
 
 run(ID, Lvl, Threshold, S1, N) ->
     case run_list(folsom_metrics:get_metrics_value({ID, Lvl}), Threshold, 0, S1) of
