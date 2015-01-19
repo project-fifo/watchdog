@@ -9,7 +9,7 @@ cp-hooks:
 	cp hooks/* .git/hooks
 
 version:
-	@echo "$(shell git symbolic-ref HEAD 2> /dev/null | cut -b 12-)-$(shell git log --pretty=format:'%h, %ad' -1)" > watchdog.version
+	@git describe > watchdog.version
 
 version_header: version
 	@echo "-define(VERSION, <<\"$(shell cat watchdog.version)\">>)." > apps/watchdog/src/watchdog_version.hrl
