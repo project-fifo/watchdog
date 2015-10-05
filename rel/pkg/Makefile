@@ -1,9 +1,9 @@
 VERSION=0.7.0
 COMPONENT_INTERNAL=watchdog
 COMPONENT=fifo-watchdog
-DEPS="erlang>=16.1.2" "coreutils>=8.22nb1" "sudo>=1.7.10p9"
+DEPS="erlang" "coreutils" "sudo"
 
-include ../../deps/fifo_utils/priv/pkg.mk
+include ../../_build/prod/lib/fifo_utils/priv/pkg.mk
 
 .PHONY: prepare
 
