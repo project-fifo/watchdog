@@ -1,4 +1,4 @@
-VERSION=0.6.2
+VERSION=0.7.0
 COMPONENT_INTERNAL=watchdog
 COMPONENT=fifo-watchdog
 DEPS="erlang>=16.1.2" "coreutils>=8.22nb1" "sudo>=1.7.10p9"

@@ -1,9 +1,9 @@
-REBAR = $(shell pwd)/rebar
+REBAR = $(shell pwd)/rebar3
 
 .PHONY: deps rel package version all
 
 
-all: cp-hooks deps compile
+all: cp-hooks compile
 
 cp-hooks:
 	cp hooks/* .git/hooks
@@ -17,9 +17,6 @@ version_header: version
 compile: version_header
 	$(REBAR) compile
 
-deps:
-	$(REBAR) get-deps
-
 clean:
 	$(REBAR) clean
 	make -C rel/pkg clean
@@ -28,31 +25,27 @@ distclean: clean devclean relclean
 	$(REBAR) delete-deps
 
 long-test:
-	[ -d apps/watchdog/.eunit ] && rm -r apps/watchdog/.eunit || true
-	$(REBAR) skip_deps=true -DEQC_LONG_TESTS eunit -v -r
+	$(REBAR) eunit
 
 eunit: 
-	$(REBAR) compile
-	[ -d apps/watchdog/.eunit ] && rm -r apps/watchdog/.eunit || true
-	$(REBAR) eunit skip_deps=true -r -v
+	$(REBAR) eunit
 
 test: eunit
-	$(REBAR) xref skip_deps=true -r
-
-quick-xref:
-	$(REBAR) xref skip_deps=true -r
+	$(REBAR) xref 
 
 quick-test:
-	[ -d apps/watchdog/.eunit ] && rm -r apps/watchdog/.eunit || true
-	$(REBAR) -DEQC_SHORT_TEST skip_deps=true eunit -r -v
+	$(REBAR) eunit 
 
-rel: relclean all
-	$(REBAR) generate
+rel:
+	$(REBAR) release
 
 relclean:
 	[ -d rel/watchdog ] && rm -rf rel/watchdog || true
 
-package: rel
+update:
+	$(REBAR) update 
+
+package: update rel
 	make -C rel/pkg package
 
 ###
@@ -66,7 +59,7 @@ docs:
 ##
 
 xref: all
-	$(REBAR) xref skip_deps=true -r
+	$(REBAR) xref
 
 stage : rel
 	$(foreach dep,$(wildcard deps/* wildcard apps/*), rm -rf rel/watchdog/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) rel/watchdog/lib;)
@@ -116,3 +109,9 @@ cleanplt:
 
 tags:
 	find . -name "*.[he]rl" -print | etags -
+
+tree: rebar.lock
+	rebar3 tree | grep -v '=' | sed 's/ (.*//' > tree
+
+tree-diff: tree
+	git diff test -- tree

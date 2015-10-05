@@ -10,3 +10,4 @@ rel/pkg/build-info
 rel/pkg/deploy/fifo-watchdog
 rel/pkg/*.tgz
 rel/pkg/packlist
+_build
