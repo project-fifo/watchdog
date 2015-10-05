@@ -37,7 +37,7 @@ quick-test:
 	$(REBAR) eunit 
 
 rel:
-	$(REBAR) release
+	$(REBAR) as prod release
 
 relclean:
 	[ -d rel/watchdog ] && rm -rf rel/watchdog || true
